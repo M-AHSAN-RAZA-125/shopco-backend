@@ -8,10 +8,14 @@ module.exports = async function connectDB() {
   const uri = getMongoUri();
   if (!uri) throw new Error("MONGO_URI is missing in .env");
 
-  // Fixes "querySrv ECONNREFUSED" for mongodb+srv:// links on some networks/ISPs.
+  // Fixes "querySrv ECONNREFUSED" for mongodb+srv:// links on some Windows networks/ISPs.
   if (process.env.MONGO_DNS_SERVERS) {
-    const servers = process.env.MONGO_DNS_SERVERS.split(",").map((s) => s.trim()).filter(Boolean);
-    if (servers.length) dns.setServers(servers);
+    try {
+      const servers = process.env.MONGO_DNS_SERVERS.split(",").map((s) => s.trim()).filter(Boolean);
+      if (servers.length) dns.setServers(servers);
+    } catch (dnsErr) {
+      console.warn("DNS server configuration skipped:", dnsErr.message);
+    }
   }
 
   await mongoose.connect(uri);
