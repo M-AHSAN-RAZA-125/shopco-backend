@@ -213,10 +213,11 @@ const products = [
     await User.deleteMany({ email: { $in: [adminEmail, "customer@shopco.com"] } });
     
     const adminUser = await User.create({
-      name: "ShopCo Admin",
+      name: "M AHSAN RAZA",
       email: adminEmail,
       password: await bcrypt.hash("admin12345", 12),
       role: "admin",
+      avatar: "/ahsan-raza.jpg",
     });
     console.log(`Admin account created: email="${adminEmail}", password="admin12345"`);
 

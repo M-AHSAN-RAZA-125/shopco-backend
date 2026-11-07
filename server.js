@@ -5,6 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const path = require("path");
+const fs = require("fs");
 
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
@@ -43,18 +44,22 @@ app.use(
 );
 
 // Middlewares
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 }
 
-// Static Images
-app.use(
-  "/images",
-  express.static(path.join(__dirname, "public", "images"))
-);
+// Ensure public directories exist
+const imagesDir = path.join(__dirname, "public", "images");
+const uploadsDir = path.join(__dirname, "public", "uploads");
+if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+// Static Images & Uploads
+app.use("/images", express.static(imagesDir));
+app.use("/uploads", express.static(uploadsDir));
 
 // Database connection cache
 let dbConnection;
@@ -121,6 +126,36 @@ app.use("/api/wishlist", require("./routes/wishlistRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/users", require("./routes/adminRoutes"));
+
+// Upload Image Route
+app.post("/api/upload", (req, res) => {
+  try {
+    const { image, name: originalName } = req.body;
+    if (!image) {
+      return res.status(400).json({ success: false, message: "No image data provided" });
+    }
+
+    if (image.startsWith("data:image/")) {
+      const matches = image.match(/^data:image\/([A-Za-z-+]+);base64,(.+)$/);
+      const ext = (matches && matches[1] ? matches[1] : "png").replace(/[^a-zA-Z0-9]/g, "");
+      const base64Data = matches && matches[2] ? matches[2] : image.replace(/^data:image\/[A-Za-z-+]+;base64,/, "");
+      const filename = `product_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const filePath = path.join(uploadsDir, filename);
+
+      fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+      return res.json({ success: true, url: `/uploads/${filename}` });
+    }
+
+    // If it's already a URL, return it
+    if (image.startsWith("http://") || image.startsWith("https://") || image.startsWith("/images/") || image.startsWith("/uploads/")) {
+      return res.json({ success: true, url: image });
+    }
+
+    return res.status(400).json({ success: false, message: "Invalid image format" });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // 404
 app.use((req, res) => {
